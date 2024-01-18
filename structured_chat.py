@@ -14,10 +14,15 @@ from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 
 @tool
 def get_word_length(word: str) -> int:
-    """ Returns the length of a word """
+    """ Returns the length of a single word """
     return len(word)
 
-tools = [get_word_length]
+@tool
+def split_words(sentence: str) -> list:
+    """ Returns a list of words from a sentence """
+    return sentence.split()
+
+tools = [get_word_length, split_words]
 
 system = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
 
@@ -84,6 +89,7 @@ agent_executor = AgentExecutor(
     # verbose=True,
     handle_parsing_errors=True,
     memory=memory,
+    max_iterations=100,
 )
 
 while True:
@@ -108,3 +114,65 @@ while True:
 # User: what was the first word i asked you to count the length of
 # Agent: langchain
 # User:
+    
+
+# More verbose output example:
+# $ python structured_chat.py 
+# User: hello how are you
+# 
+# 
+# > Entering new AgentExecutor chain...
+# Thought: The user is initiating a conversation with a greeting.
+# 
+# Action:
+# ```
+# {
+#   "action": "split_words",
+#   "action_input": {
+#     "sentence": "hello how are you"
+#   }
+# }
+# ```['hello', 'how', 'are', 'you']
+# {
+#   "action": "Final Answer",
+#   "action_input": "I'm just a language model AI, so I don't have feelings, but I'm here to help you!"
+# }
+# 
+# > Finished chain.
+# Agent: I'm just a language model AI, so I don't have feelings, but I'm here to help you!
+# User: how long is each word in the first message i sent you? and what was the first message?
+# 
+# 
+# > Entering new AgentExecutor chain...
+# I will first split the words in the first message and then get the length of each word.
+# 
+# Action:
+# ```
+# {
+#   "action": "split_words",
+#   "action_input": "hello how are you"
+# }
+# ```
+# 
+# ['hello', 'how', 'are', 'you']Action:
+# ```
+# {
+#   "action": "get_word_length",
+#   "action_input": "hello"
+# }
+# ```5{
+#   "action": "get_word_length",
+#   "action_input": "how"
+# }3{
+#   "action": "get_word_length",
+#   "action_input": "are"
+# }3{
+#   "action": "get_word_length",
+#   "action_input": "you"
+# }3{
+#   "action": "Final Answer",
+#   "action_input": "The lengths of the words in the first message are: hello (5), how (3), are (3), you (3)"
+# }
+# 
+# > Finished chain.
+# Agent: The lengths of the words in the first message are: hello (5), how (3), are (3), you (3)
