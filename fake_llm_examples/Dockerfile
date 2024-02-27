@@ -20,5 +20,4 @@ VOLUME ["/app"]
 CMD ["/bin/bash"]
 
 # Build and Use:
-# docker build -t example_structured_chat_agent .
-# docker run -it -v ./example_structured_chat_agent:/app example_structured_chat_agent
+# Run ./build.sh then ./run.sh
