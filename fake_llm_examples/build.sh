@@ -1,0 +1,1 @@
+docker build -t fake_llm_examples .
