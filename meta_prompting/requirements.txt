@@ -1,8 +1,9 @@
 langchain-openai
 langchain-community
 langchain
-langgraph
 embedchain
 crewai[tools]
 python-dotenv
 nicegui
+litellm[proxy]
+runpod
