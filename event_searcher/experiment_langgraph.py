@@ -16,7 +16,7 @@ class Config:
             cls._instance.openai_model_name = os.environ.get('OPENAI_MODEL_NAME', 'gpt-4o')
         return cls._instance
 
-from typing import Annotated
+from typing import Annotated, Literal
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -26,27 +26,66 @@ from langgraph.checkpoint.aiosqlite import AsyncSqliteSaver
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-from langchain_openai import ChatOpenAI 
+from langchain_openai import ChatOpenAI
+
+from langchain_community.utilities import GoogleSerperAPIWrapper
+from langchain.agents import Tool
+from langgraph.prebuilt import ToolNode
 
 class Nexus:
     def __init__(self, config: Config):
         self.config = config
-        graph_builder = StateGraph(State)
 
-        graph_builder.add_node("chatbot", self.chatbot)
-        graph_builder.add_edge(START, "chatbot")
-        graph_builder.add_edge("chatbot", END)
-
-        memory = AsyncSqliteSaver.from_conn_string(":memory:")
-        self.graph = graph_builder.compile(checkpointer=memory)
+        serper = self.setup_serper()
+        self.tools = [
+            serper
+        ]
 
         self.llm = ChatOpenAI(
             api_key=self.config.openai_api_key,
             base_url=self.config.openai_api_url,
             model=self.config.openai_model_name
+        ).bind_tools(self.tools)
+
+        tool_node = ToolNode(self.tools)
+
+        graph_builder = StateGraph(State)
+
+        graph_builder.add_node("chatbot", self.chatbot)
+        graph_builder.add_node("action", tool_node)
+        graph_builder.add_edge(START, "chatbot")
+        graph_builder.add_conditional_edges(
+            "chatbot",
+            self.should_continue,
+        )
+        graph_builder.add_edge("action", "chatbot")
+        graph_builder.add_edge("chatbot", END)
+
+        memory = AsyncSqliteSaver.from_conn_string(":memory:")
+        self.graph = graph_builder.compile(checkpointer=memory)
+
+
+    def setup_serper():
+        search = GoogleSerperAPIWrapper()
+        print("setup_serper")
+        return Tool(
+            name="Google Search",
+            func=search.run,
+            description="Google search API, useful for finding relevant sites on the internet"
         )
 
+    def should_continue(state: State) -> Literal["action", "__end__"]:
+        """Return the next node to execute."""
+        last_message = state["messages"][-1]
+        print("Inside should_continue")
+        # If there is no function call, then we finish
+        if not last_message.tool_calls:
+            return "__end__"
+        # Otherwise if there is, we continue
+        return "action"
+
     def chatbot(self, state: State):
+        print("Inside chatbot")
         return {"messages": [self.llm.invoke(state["messages"])]}
     
     async def chat(self, thread_id, message):
