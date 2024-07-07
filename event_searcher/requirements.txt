@@ -7,3 +7,6 @@ crewai[tools]
 python-dotenv
 nicegui
 aiosqlite
+playwright
+lxml
+nest-asyncio
