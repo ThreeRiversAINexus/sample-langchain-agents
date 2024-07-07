@@ -21,6 +21,8 @@ from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 
+from langgraph.checkpoint.aiosqlite import AsyncSqliteSaver
+
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
@@ -35,23 +37,29 @@ class Nexus:
         graph_builder.add_edge(START, "chatbot")
         graph_builder.add_edge("chatbot", END)
 
-        self.graph = graph_builder.compile()
+        memory = AsyncSqliteSaver.from_conn_string(":memory:")
+        self.graph = graph_builder.compile(checkpointer=memory)
 
-    def chatbot(self, state: State):
-        llm = ChatOpenAI(
+        self.llm = ChatOpenAI(
             api_key=self.config.openai_api_key,
             base_url=self.config.openai_api_url,
             model=self.config.openai_model_name
         )
-        return {"messages": [llm.invoke(state["messages"])]}
+
+    def chatbot(self, state: State):
+        return {"messages": [self.llm.invoke(state["messages"])]}
     
-    async def chat(self, message):
+    async def chat(self, thread_id, message):
         response = ''
-        async for event in self.graph.astream({"messages": [message]}):
+        spin = ui.spinner()
+        print("Chatting with agent...")
+        async for event in self.graph.astream({"messages": [message]},
+            {"configurable": {"thread_id": thread_id}}):
             for value in event.values():
                 for message in value["messages"]:
                     response += message.content + '\n'
                     ui.markdown(f"{response}")
+        spin.delete()
 
 @ui.page('/')
 def main():
@@ -66,13 +74,15 @@ def main():
         question = text.value
         text.value = ''
 
+        print("Sending question to agent...")
+
         with message_container:
             ui.chat_message(text=question, name='You', sent=True)
             response_message = ui.chat_message(name=config.openai_model_name, sent=False)
 
         response = ''
         with response_message:
-            await nexus.chat(question)
+            await nexus.chat("pat", question)
             response_message.sent = True
 
         ui.run_javascript('window.scrollTo(0, document.body.scrollHeight)')

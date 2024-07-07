@@ -6,3 +6,4 @@ embedchain
 crewai[tools]
 python-dotenv
 nicegui
+aiosqlite
