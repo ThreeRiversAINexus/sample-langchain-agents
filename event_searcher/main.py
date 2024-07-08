@@ -14,6 +14,7 @@ class Config:
             cls._instance.openai_api_key = os.environ.get('OPENAI_API_KEY')
             cls._instance.openai_api_url = "https://api.openai.com/v1/"
             cls._instance.openai_model_name = os.environ.get('OPENAI_MODEL_NAME', 'gpt-4o')
+            cls._instance.system_message = ""
         return cls._instance
 
 from typing import TYPE_CHECKING, Annotated, Literal, Optional
@@ -67,12 +68,18 @@ class Nexus:
 
         graph_builder.add_node("chatbot", self.chatbot)
         graph_builder.add_node("action", tool_node)
+        # graph_builder.add_node("reflection", self.reflection)
         graph_builder.add_edge(START, "chatbot")
         graph_builder.add_conditional_edges(
             "chatbot",
             self.should_continue,
         )
+        # graph_builder.add_conditional_edge("chatbot", self.should_reflect)
         graph_builder.add_edge("action", "chatbot")
+        # graph_builder.add_edge("reflection", "chatbot")
+        # graph_builder.add_edge("reflection", END)
+        # todo add reflection in langgraph with custom prompt
+        # I don't think this is right, but it is a work in progress
         graph_builder.add_edge("chatbot", END)
 
         memory = AsyncSqliteSaver.from_conn_string(":memory:")
@@ -87,9 +94,29 @@ class Nexus:
             description="Google search API, useful for finding relevant sites on the internet"
         )
 
-    def chatbot(self, state: State):
+    async def chatbot(self, state: State):
         print("Inside chatbot")
-        return {"messages": [self.llm.invoke(state["messages"])]}
+
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.messages import SystemMessage
+        from langchain_core.prompts import HumanMessagePromptTemplate
+
+        my_prompt = ChatPromptTemplate.from_messages(
+            [
+                SystemMessage(
+                    content=self.config.system_message
+                ),
+                HumanMessagePromptTemplate.from_template("""
+                    {messages}
+                """)
+            ]
+        )
+
+        chain = my_prompt | self.llm
+
+        # return {"messages": [self.llm.invoke(state["messages"])]}
+        print(state["messages"])
+        return {"messages": [await chain.ainvoke(state["messages"])]}
 
     def setup_playwright(self):
         # use create_async_playwright_browser
@@ -182,6 +209,7 @@ def main():
             ui.input(label="OPENAI_API_URL", placeholder=config.openai_api_url, on_change=lambda e: setattr(config, 'openai_api_url', e.value))
             ui.input(label="OPENAI_API_KEY", password=True, on_change=lambda e: setattr(config, 'openai_api_key', e.value))
             ui.input(label="OPENAI_MODEL_NAME", placeholder=config.openai_model_name, on_change=lambda e: setattr(config, 'openai_model_name', e.value))
+            ui.textarea(label="System Message", value=config.system_message, on_change=lambda e: setattr(config, 'system_message', e.value))
 
     with ui.footer():
         placeholder = 'Send a message here'
