@@ -87,6 +87,10 @@ class Nexus:
             description="Google search API, useful for finding relevant sites on the internet"
         )
 
+    def chatbot(self, state: State):
+        print("Inside chatbot")
+        return {"messages": [self.llm.invoke(state["messages"])]}
+
     def setup_playwright(self):
         # use create_async_playwright_browser
         # to create a browser instance
@@ -133,10 +137,6 @@ class Nexus:
                         print(message)
         return response
 
-    def chatbot(self, state: State):
-        print("Inside chatbot")
-        return {"messages": [self.llm.invoke(state["messages"])]}
-
 @ui.page('/')
 def main():
     config = Config()
@@ -155,6 +155,7 @@ def main():
         with message_container:
             ui.chat_message(text=question, name='You', sent=True)
             response_message = ui.chat_message(name=config.openai_model_name, sent=False)
+            ui.run_javascript('window.scrollTo(0, document.body.scrollHeight)')
 
         response = ''
         with response_message:
@@ -175,16 +176,16 @@ def main():
     with ui.tab_panels(tabs, value=chat_tab).classes('w-full max-w-2xl mx-auto flex-grow items-stretch'):
         with ui.tab_panel(chat_tab).classes('items-stretch'):
             message_container = ui.column().classes('w-full')
-            with ui.column().classes('w-full'):
-                placeholder = 'message'
-
-                text = ui.input(placeholder=placeholder).props('rounded outlined input-class=max-3').classes('w-full self-center').on('keydown.enter', send)
 
         with ui.tab_panel(settings_tab).classes('items-stretch'):
             ui.label('Settings')
             ui.input(label="OPENAI_API_URL", placeholder=config.openai_api_url, on_change=lambda e: setattr(config, 'openai_api_url', e.value))
             ui.input(label="OPENAI_API_KEY", password=True, on_change=lambda e: setattr(config, 'openai_api_key', e.value))
             ui.input(label="OPENAI_MODEL_NAME", placeholder=config.openai_model_name, on_change=lambda e: setattr(config, 'openai_model_name', e.value))
+
+    with ui.footer():
+        placeholder = 'Send a message here'
+        text = ui.input(placeholder=placeholder).props('rounded outlined input-class=max-3 bg-color=white').classes('w-full self-center').on('keydown.enter', send)
 
     # The agent will ask the user for their preferences and
     # then find events that match those preferences.
