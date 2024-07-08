@@ -16,7 +16,7 @@ class Config:
             cls._instance.openai_model_name = os.environ.get('OPENAI_MODEL_NAME', 'gpt-4o')
         return cls._instance
 
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal, Optional
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -36,12 +36,16 @@ from langchain_community.tools.playwright.utils import (
     create_async_playwright_browser,
 )
 
+from langchain_community.tools.playwright.navigate import NavigateTool
+
 import nest_asyncio
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 from langchain_openai import ChatOpenAI 
+
+from my_utils.navigate import NexusNavigateTool
 
 class Nexus:
     def __init__(self, config: Config):
@@ -84,10 +88,21 @@ class Nexus:
         )
 
     def setup_playwright(self):
+        # use create_async_playwright_browser
+        # to create a browser instance
         nest_asyncio.apply()
         async_browser = create_async_playwright_browser()
+        # create a new instance of the NexusNavigateTool
+        # and pass the browser instance to it
+        navigate = NexusNavigateTool.from_browser(async_browser=async_browser)
+
         toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
         tools = toolkit.get_tools()
+
+        # Filter out tool with object type NavigateTool
+        tools = [tool for tool in tools if not isinstance(tool, NavigateTool)]
+        tools.append(navigate)
+
         return tools
 
     def should_continue(self, state: State) -> Literal["action", "__end__"]:
@@ -158,7 +173,6 @@ def main():
         settings_tab = ui.tab('Settings')
     
     with ui.tab_panels(tabs, value=chat_tab).classes('w-full max-w-2xl mx-auto flex-grow items-stretch'):
-        #message_container = ui.tab_panel(chat_tab).classes('items-stretch')
         with ui.tab_panel(chat_tab).classes('items-stretch'):
             message_container = ui.column().classes('w-full')
             with ui.column().classes('w-full'):
@@ -176,3 +190,4 @@ def main():
     # then find events that match those preferences.
 
 ui.run(loop="asyncio")
+# ui.run()

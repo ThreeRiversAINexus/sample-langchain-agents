@@ -1,5 +1,5 @@
-# Use the official Python 3.10 runtime as a parent image
-FROM python:3.10
+# Use the official Python 3.11 runtime as a parent image
+FROM python:3.11
 
 # Set the working directory in the container to /foobar
 # This is where the volume will be mounted
