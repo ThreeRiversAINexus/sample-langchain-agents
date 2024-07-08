@@ -1,12 +1,9 @@
 langchain-openai
 langchain-community
 langchain
-langgraph
 embedchain
 crewai[tools]
 python-dotenv
 nicegui
-aiosqlite
-playwright
-lxml
-nest-asyncio
+litellm[proxy]
+runpod
