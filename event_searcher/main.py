@@ -1,8 +1,12 @@
 from nicegui import ui
-
 import os
 from dotenv import load_dotenv
+import agentops
+
 load_dotenv()
+
+# Initialize AgentOps
+agentops.init(os.environ.get('AGENTOPS_API_KEY'))
 
 # Singleton class for configuration
 class Config:
@@ -78,6 +82,7 @@ class Nexus:
         memory = AsyncSqliteSaver.from_conn_string(":memory:")
         self.graph = graph_builder.compile(checkpointer=memory)
 
+    @agentops.record_function('setup_serper')
     def setup_serper(self):
         search = GoogleSerperAPIWrapper()
         print("setup_serper")
@@ -87,38 +92,34 @@ class Nexus:
             description="Google search API, useful for finding relevant sites on the internet"
         )
 
+    @agentops.record_function('chatbot')
     def chatbot(self, state: State):
         print("Inside chatbot")
         return {"messages": [self.llm.invoke(state["messages"])]}
 
+    @agentops.record_function('setup_playwright')
     def setup_playwright(self):
-        # use create_async_playwright_browser
-        # to create a browser instance
         nest_asyncio.apply()
         async_browser = create_async_playwright_browser()
-        # create a new instance of the NexusNavigateTool
-        # and pass the browser instance to it
         navigate = NexusNavigateTool.from_browser(async_browser=async_browser)
 
         toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
         tools = toolkit.get_tools()
 
-        # Filter out tool with object type NavigateTool
         tools = [tool for tool in tools if not isinstance(tool, NavigateTool)]
         tools.append(navigate)
 
         return tools
 
+    @agentops.record_function('should_continue')
     def should_continue(self, state: State) -> Literal["action", "__end__"]:
-        """Return the next node to execute."""
         last_message = state["messages"][-1]
         print("Inside should_continue")
-        # If there is no function call, then we finish
         if not last_message.tool_calls:
             return "__end__"
-        # Otherwise if there is, we continue
         return "action"
     
+    @agentops.record_function('chat')
     async def chat(self, thread_id, message):
         response = ''
         print("Chatting with agent...")
@@ -128,11 +129,8 @@ class Nexus:
             for value in event.values():
                 print("Value: ", value)
                 for message in value["messages"]:
-                    # If the message is an AIMessage, we want to display it
                     if isinstance(message, AIMessage):
                         response += message.content + '\n'
-                        # ui.markdown(f"{response}")
-                    # If the message is a ToolMessage, we want to log it
                     if isinstance(message, ToolMessage):
                         print(message)
         return response
@@ -141,11 +139,8 @@ class Nexus:
 def main():
     config = Config()
     nexus = Nexus(config)
-    
-    # The purpose of this application is to find events that
-    # the user might like to go to. The user can input their
-    # preferences by chatting with the agent directly.
 
+    @agentops.record_function('send')
     async def send() -> None:
         question = text.value
         text.value = ''
@@ -187,8 +182,8 @@ def main():
         placeholder = 'Send a message here'
         text = ui.input(placeholder=placeholder).props('rounded outlined input-class=max-3 bg-color=white').classes('w-full self-center').on('keydown.enter', send)
 
-    # The agent will ask the user for their preferences and
-    # then find events that match those preferences.
-
-ui.run(loop="asyncio")
-# ui.run()
+if __name__ == "__main__":
+    try:
+        ui.run(loop="asyncio")
+    finally:
+        agentops.end_session('Success')

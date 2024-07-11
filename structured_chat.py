@@ -1,10 +1,14 @@
 from dotenv import load_dotenv
 import os
+import agentops
 
-# Simply add OPENAI_API_KEY=... to .env
+# Simply add OPENAI_API_KEY=... and AGENTOPS_API_KEY=... to .env
 # Then launch with `python structured_chat.py`
 
 load_dotenv()
+
+# Initialize AgentOps
+agentops.init(os.getenv('AGENTOPS_API_KEY'))
 
 from langchain.agents import AgentExecutor, create_structured_chat_agent
 from langchain_openai import ChatOpenAI
@@ -12,11 +16,13 @@ from langchain.agents import tool
 from langchain.memory import ConversationBufferMemory
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 
+@agentops.record_function('get_word_length')
 @tool
 def get_word_length(word: str) -> int:
     """ Returns the length of a single word """
     return len(word)
 
+@agentops.record_function('split_words')
 @tool
 def split_words(sentence: str) -> list:
     """ Returns a list of words from a sentence """
@@ -92,14 +98,25 @@ agent_executor = AgentExecutor(
     max_iterations=100,
 )
 
-while True:
-    user_input = input("User: ")
-    chat_history = memory.buffer_as_messages
+@agentops.record_function('process_user_input')
+def process_user_input(user_input, chat_history):
     response = agent_executor.invoke({
         "input": user_input,
         "chat_history": chat_history,
     })
-    print("Agent:", response['output'])
+    return response['output']
+
+try:
+    while True:
+        user_input = input("User: ")
+        chat_history = memory.buffer_as_messages
+        agent_response = process_user_input(user_input, chat_history)
+        print("Agent:", agent_response)
+except KeyboardInterrupt:
+    print("\nExiting chat...")
+finally:
+    agentops.end_session('Success')
+
 
 # Example chat
 # $ python structured_chat.py 

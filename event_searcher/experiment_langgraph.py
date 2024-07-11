@@ -1,8 +1,12 @@
 from nicegui import ui
-
 import os
 from dotenv import load_dotenv
+import agentops
+
 load_dotenv()
+
+# Initialize AgentOps
+agentops.init(os.environ.get('AGENTOPS_API_KEY'))
 
 # Singleton class for configuration
 class Config:
@@ -64,7 +68,7 @@ class Nexus:
         memory = AsyncSqliteSaver.from_conn_string(":memory:")
         self.graph = graph_builder.compile(checkpointer=memory)
 
-
+    @agentops.record_function('setup_serper')
     def setup_serper():
         search = GoogleSerperAPIWrapper()
         print("setup_serper")
@@ -74,6 +78,7 @@ class Nexus:
             description="Google search API, useful for finding relevant sites on the internet"
         )
 
+    @agentops.record_function('should_continue')
     def should_continue(state: State) -> Literal["action", "__end__"]:
         """Return the next node to execute."""
         last_message = state["messages"][-1]
@@ -84,10 +89,12 @@ class Nexus:
         # Otherwise if there is, we continue
         return "action"
 
+    @agentops.record_function('chatbot')
     def chatbot(self, state: State):
         print("Inside chatbot")
         return {"messages": [self.llm.invoke(state["messages"])]}
     
+    @agentops.record_function('chat')
     async def chat(self, thread_id, message):
         response = ''
         spin = ui.spinner()
@@ -109,6 +116,7 @@ def main():
     # the user might like to go to. The user can input their
     # preferences by chatting with the agent directly.
 
+    @agentops.record_function('send')
     async def send() -> None:
         question = text.value
         text.value = ''
@@ -133,12 +141,10 @@ def main():
         settings_tab = ui.tab('Settings')
     
     with ui.tab_panels(tabs, value=chat_tab).classes('w-full max-w-2xl mx-auto flex-grow items-stretch'):
-        #message_container = ui.tab_panel(chat_tab).classes('items-stretch')
         with ui.tab_panel(chat_tab).classes('items-stretch'):
             message_container = ui.column().classes('w-full')
             with ui.column().classes('w-full'):
                 placeholder = 'message'
-
                 text = ui.input(placeholder=placeholder).props('rounded outlined input-class=max-3').classes('w-full self-center').on('keydown.enter', send)
 
         with ui.tab_panel(settings_tab).classes('items-stretch'):
@@ -150,4 +156,8 @@ def main():
     # The agent will ask the user for their preferences and
     # then find events that match those preferences.
 
-ui.run()
+if __name__ == "__main__":
+    try:
+        ui.run()
+    finally:
+        agentops.end_session('Success')

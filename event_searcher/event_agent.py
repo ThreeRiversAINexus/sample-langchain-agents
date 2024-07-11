@@ -2,20 +2,27 @@ import os
 from crewai import Agent, Task, Crew
 from crewai_tools import SerperDevTool
 from dotenv import load_dotenv
+import agentops
 
 load_dotenv()
+
+# Initialize AgentOps
+agentops.init(os.getenv('AGENTOPS_API_KEY'))
 
 from langchain_openai import ChatOpenAI
 
 class Beliefs():
+    @agentops.record_function('create_chat_llm')
     def create_chat_llm(self):
         return ChatOpenAI(model='gpt-3.5-turbo')
 
+    @agentops.record_function('today')
     def today(self):
         import datetime
         return datetime.datetime.now().strftime("%B %d, %Y")
 
 class Intentions():
+    @agentops.record_function('search_events')
     def search_events(self, description, agent):
         search_tool = SerperDevTool()
         return Task(
@@ -33,6 +40,7 @@ class EventRecommendationSystem():
         self.beliefs = beliefs
         self.intentions = intentions
 
+    @agentops.record_function('event_finding_agent')
     def event_finding_agent(self):
         llm = self.beliefs.create_chat_llm()
 
@@ -45,6 +53,7 @@ class EventRecommendationSystem():
             verbose=True
         )
 
+    @agentops.record_function('find_events')
     def find_events(self, description):
         finder = self.event_finding_agent()
         today = self.beliefs.today()
@@ -59,14 +68,20 @@ class EventRecommendationSystem():
             )
 
             return c.kickoff()
-        except:
+        except Exception as e:
             import traceback
             traceback.print_exc()
+            agentops.log_error(str(e))
             return "There was an error"
 
+@agentops.record_function('run')
 def run():
     recommender = EventRecommendationSystem()
     events = recommender.find_events("Live music in Pittsburgh, PA")
     print(events)
 
-run()
+if __name__ == "__main__":
+    try:
+        run()
+    finally:
+        agentops.end_session('Success')

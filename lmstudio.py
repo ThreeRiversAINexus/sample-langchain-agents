@@ -1,5 +1,10 @@
 import openai
+import agentops
 
+# Initialize AgentOps at the beginning of your program
+agentops.init("<INSERT YOUR API KEY HERE>")
+
+@agentops.record_function('make_request')
 def make_request(system_content, user_content):
     # Set up OpenAI API
     openai.api_base = "http://pats-upstairs-desktop.lan:1234/v1" # Point to the local server
@@ -16,6 +21,7 @@ def make_request(system_content, user_content):
 
     # Print the response
     print(completion.choices[0].message)
+    return completion.choices[0].message
 
 # Define system content with ||| instead of backticks
 system_content = """Respond to the human as helpfully and accurately as possible. You have access to the following tools:
@@ -62,4 +68,7 @@ then Observation"""
 user_content = "Introduce yourself."
 
 # Make the request
-make_request(system_content, user_content)
+response = make_request(system_content, user_content)
+
+# End the session
+agentops.end_session('Success')
