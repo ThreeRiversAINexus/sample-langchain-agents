@@ -1,0 +1,7 @@
+langchain-openai
+langchain-community
+langchain
+python-dotenv
+runpod
+nicegui
+openai
