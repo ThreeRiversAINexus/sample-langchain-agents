@@ -5,6 +5,7 @@ FROM python:3.10
 # This is where the volume will be mounted
 WORKDIR /app
 
+COPY custom/ custom/
 COPY requirements.txt requirements.txt
 COPY main.py main.py
 
