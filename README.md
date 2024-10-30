@@ -1,1 +1,1 @@
-# sample-langchain-agents
+# sample-agents
